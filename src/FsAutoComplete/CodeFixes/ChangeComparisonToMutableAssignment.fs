@@ -15,7 +15,8 @@ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
     (fun diagnostic codeActionParams ->
       asyncResult {
         let fileName =
-          codeActionParams.TextDocument.GetFilePath() |> Utils.normalizePath
+          codeActionParams.TextDocument.GetFilePath()
+          |> Utils.normalizePath
 
         let fcsPos = protocolPosToPos diagnostic.Range.Start
         let! (tyRes, line, lines) = getParseResultsForFile fileName fcsPos
@@ -33,22 +34,21 @@ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
           match symbol.Symbol with
           // only do anything if the value is mutable
           | :? FSharpMemberOrFunctionOrValue as mfv when mfv.IsMutable || mfv.HasSetterMethod ->
-              // try to find the '=' at from the start of the range
-              let endOfMutableValue = fcsPosToLsp symbol.RangeAlternate.End
+            // try to find the '=' at from the start of the range
+            let endOfMutableValue = fcsPosToLsp symbol.RangeAlternate.End
 
-              match walkForwardUntilCondition lines endOfMutableValue (fun c -> c = '=') with
-              | Some equalsPos ->
-                  return
-                    [ { File = codeActionParams.TextDocument
-                        Title = "Use '<-' to mutate value"
-                        SourceDiagnostic = Some diagnostic
-                        Edits =
-                          [| { Range =
-                                 { Start = equalsPos
-                                   End = (inc lines equalsPos) }
-                               NewText = "<-" } |]
-                        Kind = Refactor } ]
-              | None -> return []
+            match walkForwardUntilCondition lines endOfMutableValue (fun c -> c = '=') with
+            | Some equalsPos ->
+              return
+                [ { File = codeActionParams.TextDocument
+                    Title = "Use '<-' to mutate value"
+                    SourceDiagnostic = Some diagnostic
+                    Edits =
+                      [| { Range =
+                             { Start = equalsPos
+                               End = (inc lines equalsPos) }
+                           NewText = "<-" } |]
+                    Kind = Refactor } ]
+            | None -> return []
           | _ -> return []
-      }
-      )
+      })

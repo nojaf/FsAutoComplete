@@ -17,9 +17,10 @@ let fix =
              let suggestion = suggestion.Trim()
 
              let suggestion =
-               if System.Text.RegularExpressions.Regex.IsMatch(suggestion, """^[a-zA-Z][a-zA-Z0-9']+$""")
-               then suggestion
-               else $"``%s{suggestion}``"
+               if System.Text.RegularExpressions.Regex.IsMatch(suggestion, """^[a-zA-Z][a-zA-Z0-9']+$""") then
+                 suggestion
+               else
+                 $"``%s{suggestion}``"
 
              { Edits =
                  [| { Range = diagnostic.Range

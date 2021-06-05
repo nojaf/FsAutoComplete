@@ -9,13 +9,14 @@ open FsAutoComplete.LspHelpers
 open FSharp.UMX
 
 /// a codefix that adds the 'rec' modifier to a binding in a mutually-recursive loop
-let fix (getFileLines: GetFileLines) (getLineText: GetLineText): CodeFix =
+let fix (getFileLines: GetFileLines) (getLineText: GetLineText) : CodeFix =
   Run.ifDiagnosticByCode
     (Set.ofList [ "576" ])
     (fun diagnostic codeActionParams ->
       asyncResult {
         let fileName =
-          codeActionParams.TextDocument.GetFilePath() |> Utils.normalizePath
+          codeActionParams.TextDocument.GetFilePath()
+          |> Utils.normalizePath
 
         let! lines = getFileLines fileName
         let endOfError = diagnostic.Range.End
@@ -32,42 +33,45 @@ let fix (getFileLines: GetFileLines) (getLineText: GetLineText): CodeFix =
         match firstWhiteSpaceAfterError with
         | None -> return []
         | Some startOfBindingName ->
-            let fcsPos = protocolPosToPos startOfBindingName
+          let fcsPos = protocolPosToPos startOfBindingName
 
-            let lineLen =
-              lines.GetLineString(diagnostic.Range.Start.Line).Length
+          let lineLen =
+            lines
+              .GetLineString(
+                diagnostic.Range.Start.Line
+              )
+              .Length
 
-            let! line =
-              getLineText
-                lines
-                { Start =
-                    { diagnostic.Range.Start with
-                        Character = 0 }
-                  End =
-                    { diagnostic.Range.End with
-                        Character = lineLen } }
+          let! line =
+            getLineText
+              lines
+              { Start =
+                  { diagnostic.Range.Start with
+                      Character = 0 }
+                End =
+                  { diagnostic.Range.End with
+                      Character = lineLen } }
 
-            match Lexer.getSymbol fcsPos.Line fcsPos.Column line SymbolLookupKind.Fuzzy [||] with
-            | Some lexSym ->
-                let fcsStartPos =
-                  FSharp.Compiler.Text.Pos.mkPos lexSym.Line lexSym.LeftColumn
+          match Lexer.getSymbol fcsPos.Line fcsPos.Column line SymbolLookupKind.Fuzzy [||] with
+          | Some lexSym ->
+            let fcsStartPos =
+              FSharp.Compiler.Text.Pos.mkPos lexSym.Line lexSym.LeftColumn
 
-                let fcsEndPos =
-                  FSharp.Compiler.Text.Pos.mkPos lexSym.Line lexSym.RightColumn
+            let fcsEndPos =
+              FSharp.Compiler.Text.Pos.mkPos lexSym.Line lexSym.RightColumn
 
-                let protocolRange =
-                  fcsRangeToLsp (FSharp.Compiler.Text.Range.mkRange (UMX.untag fileName) fcsStartPos fcsEndPos)
+            let protocolRange =
+              fcsRangeToLsp (FSharp.Compiler.Text.Range.mkRange (UMX.untag fileName) fcsStartPos fcsEndPos)
 
-                let symbolName = getLineText lines protocolRange
+            let symbolName = getLineText lines protocolRange
 
-                return
-                  [ { Title = $"Make '{symbolName}' recursive"
-                      File = codeActionParams.TextDocument
-                      SourceDiagnostic = Some diagnostic
-                      Edits =
-                        [| { Range = { Start = endOfError; End = endOfError }
-                             NewText = " rec" } |]
-                      Kind = Fix } ]
-            | None -> return []
-      }
-      )
+            return
+              [ { Title = $"Make '{symbolName}' recursive"
+                  File = codeActionParams.TextDocument
+                  SourceDiagnostic = Some diagnostic
+                  Edits =
+                    [| { Range = { Start = endOfError; End = endOfError }
+                         NewText = " rec" } |]
+                  Kind = Fix } ]
+          | None -> return []
+      })

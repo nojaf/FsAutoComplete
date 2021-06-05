@@ -6,7 +6,7 @@ open LanguageServerProtocol.Types
 open FsAutoComplete
 
 /// a codefix that fixes a malformed record type annotation to use colon instead of equals
-let fix: CodeFix =
+let fix : CodeFix =
   Run.ifDiagnosticByCode
     (Set.ofList [ "10" ])
     (fun diagnostic codeActionParams ->

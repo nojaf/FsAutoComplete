@@ -13,7 +13,8 @@ let fix (getParseResultsForFile: GetParseResultsForFile) (getLineText: GetLineTe
     (fun diagnostic codeActionParams ->
       asyncResult {
         let fileName =
-          codeActionParams.TextDocument.GetFilePath() |> Utils.normalizePath
+          codeActionParams.TextDocument.GetFilePath()
+          |> Utils.normalizePath
 
         let errorRangeStart = protocolPosToPos diagnostic.Range.Start
         let! (tyres, _line, lines) = getParseResultsForFile fileName errorRangeStart
@@ -26,9 +27,7 @@ let fix (getParseResultsForFile: GetParseResultsForFile) (getLineText: GetLineTe
         let lspOuterBindingRange = fcsRangeToLsp outerBindingRange
         let outerBindingName = getLineText lines lspOuterBindingRange
 
-        do! Result.guard
-              (fun _ -> missingMemberName = outerBindingName)
-              "member names didn't match, don't suggest fix"
+        do! Result.guard (fun _ -> missingMemberName = outerBindingName) "member names didn't match, don't suggest fix"
 
         return
           [ { Title = "Make outer binding recursive"
@@ -40,5 +39,4 @@ let fix (getParseResultsForFile: GetParseResultsForFile) (getLineText: GetLineTe
                        { Start = lspOuterBindingRange.Start
                          End = lspOuterBindingRange.Start }
                      NewText = "rec " } |] } ]
-      }
-      )
+      })

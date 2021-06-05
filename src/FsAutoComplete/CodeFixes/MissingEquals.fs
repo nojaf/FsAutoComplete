@@ -16,24 +16,24 @@ let fix (getFileLines: GetFileLines) =
         if diagnostic.Message.Contains "Unexpected symbol '{' in type definition"
            || diagnostic.Message.Contains "Unexpected keyword 'member' in type definition" then
           let fileName =
-            codeActionParams.TextDocument.GetFilePath() |> Utils.normalizePath
+            codeActionParams.TextDocument.GetFilePath()
+            |> Utils.normalizePath
 
           let! lines = getFileLines fileName
 
           match walkBackUntilCondition lines (dec lines diagnostic.Range.Start) (System.Char.IsWhiteSpace >> not) with
           | Some firstNonWhitespaceChar ->
-              let insertPos = inc lines firstNonWhitespaceChar
+            let insertPos = inc lines firstNonWhitespaceChar
 
-              return
-                [ { SourceDiagnostic = Some diagnostic
-                    Title = "Add missing '=' to type definition"
-                    File = codeActionParams.TextDocument
-                    Edits =
-                      [| { Range = { Start = insertPos; End = insertPos }
-                           NewText = " =" } |]
-                    Kind = Fix } ]
+            return
+              [ { SourceDiagnostic = Some diagnostic
+                  Title = "Add missing '=' to type definition"
+                  File = codeActionParams.TextDocument
+                  Edits =
+                    [| { Range = { Start = insertPos; End = insertPos }
+                         NewText = " =" } |]
+                  Kind = Fix } ]
           | None -> return []
         else
           return []
-      }
-      )
+      })

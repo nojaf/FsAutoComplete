@@ -8,20 +8,25 @@ open FsAutoComplete
 open FsAutoComplete.LspHelpers
 
 /// a codefix that adds a missing 'fun' keyword to a lambda
-let fix (getFileLines: GetFileLines) (getLineText: GetLineText): CodeFix =
+let fix (getFileLines: GetFileLines) (getLineText: GetLineText) : CodeFix =
   Run.ifDiagnosticByCode
     (Set.ofList [ "10" ])
     (fun diagnostic codeActionParams ->
       asyncResult {
         let fileName =
-          codeActionParams.TextDocument.GetFilePath() |> Utils.normalizePath
+          codeActionParams.TextDocument.GetFilePath()
+          |> Utils.normalizePath
 
         let! lines = getFileLines fileName
         let! errorText = getLineText lines diagnostic.Range
         do! Result.guard (fun _ -> errorText = "->") "Expected error source code text not matched"
 
         let lineLen =
-          lines.GetLineString(diagnostic.Range.Start.Line).Length
+          lines
+            .GetLineString(
+              diagnostic.Range.Start.Line
+            )
+            .Length
 
         let! line =
           getLineText
@@ -45,23 +50,22 @@ let fix (getFileLines: GetFileLines) (getLineText: GetLineText): CodeFix =
         match adjustedPos with
         | None -> return []
         | Some firstNonWhitespacePos ->
-            let fcsPos = protocolPosToPos firstNonWhitespacePos
+          let fcsPos = protocolPosToPos firstNonWhitespacePos
 
-            match Lexer.getSymbol fcsPos.Line fcsPos.Column line SymbolLookupKind.Fuzzy [||] with
-            | Some lexSym ->
-                let fcsStartPos =
-                  FSharp.Compiler.Text.Pos.mkPos lexSym.Line lexSym.LeftColumn
+          match Lexer.getSymbol fcsPos.Line fcsPos.Column line SymbolLookupKind.Fuzzy [||] with
+          | Some lexSym ->
+            let fcsStartPos =
+              FSharp.Compiler.Text.Pos.mkPos lexSym.Line lexSym.LeftColumn
 
-                let symbolStartRange = fcsPosToProtocolRange fcsStartPos
+            let symbolStartRange = fcsPosToProtocolRange fcsStartPos
 
-                return
-                  [ { Title = "Add missing 'fun' keyword"
-                      File = codeActionParams.TextDocument
-                      SourceDiagnostic = Some diagnostic
-                      Edits =
-                        [| { Range = symbolStartRange
-                             NewText = "fun " } |]
-                      Kind = Fix } ]
-            | None -> return []
-      }
-      )
+            return
+              [ { Title = "Add missing 'fun' keyword"
+                  File = codeActionParams.TextDocument
+                  SourceDiagnostic = Some diagnostic
+                  Edits =
+                    [| { Range = symbolStartRange
+                         NewText = "fun " } |]
+                  Kind = Fix } ]
+          | None -> return []
+      })

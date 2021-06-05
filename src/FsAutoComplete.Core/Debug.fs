@@ -47,7 +47,8 @@ module Debug =
 
       let mutable source = null
 
-      let inflightEvents = ConcurrentDictionary<Guid, DateTimeOffset>()
+      let inflightEvents =
+        ConcurrentDictionary<Guid, DateTimeOffset>()
 
       let eventLevelToLogLevel (e: EventLevel) =
         match e with
@@ -63,35 +64,53 @@ module Debug =
         if newSource.Name = "FSharpCompiler" then
           base.EnableEvents(newSource, EventLevel.LogAlways, EventKeywords.All)
           source <- newSource
+
       override __.OnEventWritten eventArgs =
 
         let message =
           match eventArgs.EventName with
-          | "Log" -> Log.setMessage "Inside Compiler Function {function}" >> logFunctionName eventArgs.Payload.[0]
-          | "LogMessage" -> Log.setMessage "({function}) {message}" >> logFunctionName eventArgs.Payload.[1] >> Log.addContextDestructured "message" (eventArgs.Payload.[0] :?> string)
-          | "BlockStart" | "BlockMessageStart" ->
-             inflightEvents.TryAdd(eventArgs.RelatedActivityId, DateTimeOffset.UtcNow) |> ignore
-             id
+          | "Log" ->
+            Log.setMessage "Inside Compiler Function {function}"
+            >> logFunctionName eventArgs.Payload.[0]
+          | "LogMessage" ->
+            Log.setMessage "({function}) {message}"
+            >> logFunctionName eventArgs.Payload.[1]
+            >> Log.addContextDestructured "message" (eventArgs.Payload.[0] :?> string)
+          | "BlockStart"
+          | "BlockMessageStart" ->
+            inflightEvents.TryAdd(eventArgs.RelatedActivityId, DateTimeOffset.UtcNow)
+            |> ignore
+
+            id
           | "BlockEnd" ->
             match inflightEvents.TryRemove(eventArgs.RelatedActivityId) with
             | true, startTime ->
               let delta = DateTimeOffset.UtcNow - startTime
-              Log.setMessage "Finished compiler function {function} in {seconds}" >> logFunctionName eventArgs.Payload.[0] >> Log.addContextDestructured "seconds" delta.TotalSeconds
+
+              Log.setMessage "Finished compiler function {function} in {seconds}"
+              >> logFunctionName eventArgs.Payload.[0]
+              >> Log.addContextDestructured "seconds" delta.TotalSeconds
             | false, _ -> id
           | "BlockMessageStop" ->
             match inflightEvents.TryRemove(eventArgs.RelatedActivityId) with
             | true, startTime ->
               let delta = DateTimeOffset.UtcNow - startTime
+
               Log.setMessage "Finished compiler function {function} with parameter {parameter} in {seconds}"
               >> logFunctionName eventArgs.Payload.[1]
               >> Log.addContextDestructured "seconds" delta.TotalSeconds
               >> Log.addContextDestructured "parameter" (eventArgs.Payload.[0])
             | false, _ -> id
           | other ->
-            Log.setMessage "Unknown event {name} with payload {payload}" >> Log.addContextDestructured "name" eventArgs.EventName >> Log.addContextDestructured "payload" (eventArgs.Payload |> Seq.toList)
+            Log.setMessage "Unknown event {name} with payload {payload}"
+            >> Log.addContextDestructured "name" eventArgs.EventName
+            >> Log.addContextDestructured "payload" (eventArgs.Payload |> Seq.toList)
 
         (eventLevelToLogLevel eventArgs.Level) message
 
       interface System.IDisposable with
-        member __.Dispose () =
-          if isNull source then () else base.DisableEvents(source)
+        member __.Dispose() =
+          if isNull source then
+            ()
+          else
+            base.DisableEvents(source)

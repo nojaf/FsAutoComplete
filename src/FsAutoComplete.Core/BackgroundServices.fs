@@ -51,8 +51,8 @@ type BackgroundService =
   abstract SaveFile : BackgroundFileCheckType -> unit
   abstract MessageReceived : IEvent<MessageType>
   abstract Start : workspaceDir: string -> unit
-  abstract GetSymbols: string -> Async<option<SymbolCache.SymbolUseRange array>>
-  abstract GetImplementation: string -> Async<option<SymbolCache.SymbolUseRange array>>
+  abstract GetSymbols : string -> Async<option<SymbolCache.SymbolUseRange array>>
+  abstract GetImplementation : string -> Async<option<SymbolCache.SymbolUseRange array>>
 
 type ActualBackgroundService() =
   let messageRecieved = Event<MessageType>()
@@ -91,7 +91,7 @@ type ActualBackgroundService() =
     )
 
   interface BackgroundService with
-    member x.Start (workspaceDir) =
+    member x.Start(workspaceDir) =
       SymbolCache.initCache workspaceDir
       client.Start()
 
@@ -113,8 +113,7 @@ type ActualBackgroundService() =
 
     member x.MessageReceived = messageRecieved.Publish
 
-    member x.GetSymbols symbolName =
-      SymbolCache.getSymbols symbolName
+    member x.GetSymbols symbolName = SymbolCache.getSymbols symbolName
 
     member x.GetImplementation symbolName =
       SymbolCache.getImplementation symbolName

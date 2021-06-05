@@ -12,18 +12,21 @@ let fix (getRangeText: GetRangeText) : CodeFix =
     (Set.ofList [ "43" ])
     (fun diagnostic codeActionParams ->
       asyncResult {
-        let fileName = codeActionParams.TextDocument.GetFilePath() |> Utils.normalizePath
+        let fileName =
+          codeActionParams.TextDocument.GetFilePath()
+          |> Utils.normalizePath
+
         let! errorText = getRangeText fileName diagnostic.Range
+
         match errorText with
         | "==" ->
-            return
-              [ { Title = "Use '=' for equality check"
-                  File = codeActionParams.TextDocument
-                  SourceDiagnostic = Some diagnostic
-                  Edits =
-                    [| { Range = diagnostic.Range
-                         NewText = "=" } |]
-                  Kind = Fix } ]
+          return
+            [ { Title = "Use '=' for equality check"
+                File = codeActionParams.TextDocument
+                SourceDiagnostic = Some diagnostic
+                Edits =
+                  [| { Range = diagnostic.Range
+                       NewText = "=" } |]
+                Kind = Fix } ]
         | _ -> return []
-      }
-      )
+      })

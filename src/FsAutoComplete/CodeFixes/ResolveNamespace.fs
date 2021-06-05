@@ -12,7 +12,13 @@ open FSharp.Compiler.Text
 type LineText = string
 
 /// a codefix the provides suggestions for opening modules or using qualified names when an identifier is found that needs qualification
-let fix (getParseResultsForFile: GetParseResultsForFile) (getNamespaceSuggestions: ParseAndCheckResults -> FcsPos -> LineText -> Async<CoreResponse<string * list<StringLongIdent * StringLongIdent * InsertContext * bool> * list<StringLongIdent * StringLongIdent>>>) =
+let fix
+  (getParseResultsForFile: GetParseResultsForFile)
+  (getNamespaceSuggestions: ParseAndCheckResults
+                              -> FcsPos
+                              -> LineText
+                              -> Async<CoreResponse<string * list<StringLongIdent * StringLongIdent * InsertContext * bool> * list<StringLongIdent * StringLongIdent>>>)
+  =
 
   /// insert a line of text at a given line
   let insertLine line lineStr =
@@ -26,20 +32,29 @@ let fix (getParseResultsForFile: GetParseResultsForFile) (getNamespaceSuggestion
 
     match ctx.ScopeKind with
     | TopModule when l > 1 ->
-        let line = lines.GetLineString (l - 2)
+      let line = lines.GetLineString(l - 2)
 
-        let isImplicitTopLevelModule =
-          not
-            (line.StartsWith "module"
-             && not (line.EndsWith "="))
+      let isImplicitTopLevelModule =
+        not (
+          line.StartsWith "module"
+          && not (line.EndsWith "=")
+        )
 
-        if isImplicitTopLevelModule then 1 else l
+      if isImplicitTopLevelModule then
+        1
+      else
+        l
     | TopModule -> 1
     | ScopeKind.Namespace when l > 1 ->
-        [ 0 .. l - 1 ]
-        |> List.mapi (fun i line -> i, lines.GetLineString line)
-        |> List.tryPick (fun (i, lineStr) -> if lineStr.StartsWith "namespace" then Some i else None)
-        |> function
+      [ 0 .. l - 1 ]
+      |> List.mapi (fun i line -> i, lines.GetLineString line)
+      |> List.tryPick
+           (fun (i, lineStr) ->
+             if lineStr.StartsWith "namespace" then
+               Some i
+             else
+               None)
+      |> function
         // move to the next line below "namespace" and convert it to F# 1-based line number
         | Some line -> line + 2
         | None -> l
@@ -55,7 +70,7 @@ let fix (getParseResultsForFile: GetParseResultsForFile) (getNamespaceSuggestion
       Title = $"Use %s{qual}"
       Kind = Fix }
 
-  let openFix (text: ISourceText) file diagnostic (word: string) (ns, name: string, ctx, multiple): Fix =
+  let openFix (text: ISourceText) file diagnostic (word: string) (ns, name: string, ctx, multiple) : Fix =
     let insertPoint = adjustInsertionPoint text ctx
     let docLine = insertPoint - 1
 
@@ -76,10 +91,13 @@ let fix (getParseResultsForFile: GetParseResultsForFile) (getNamespaceSuggestion
 
     let edits =
       [| yield insertLine docLine lineStr
-         if text.GetLineString(docLine + 1).Trim() <> "" then yield insertLine (docLine + 1) ""
-         if (ctx.Pos.Column = 0 || ctx.ScopeKind = Namespace)
-            && docLine > 0
-            && not (text.GetLineString(docLine - 1).StartsWith "open") then
+         if text.GetLineString(docLine + 1).Trim() <> "" then
+           yield insertLine (docLine + 1) ""
+         if
+           (ctx.Pos.Column = 0 || ctx.ScopeKind = Namespace)
+           && docLine > 0
+           && not (text.GetLineString(docLine - 1).StartsWith "open")
+         then
            yield insertLine (docLine - 1) "" |]
 
     { Edits = edits
@@ -95,20 +113,22 @@ let fix (getParseResultsForFile: GetParseResultsForFile) (getNamespaceSuggestion
         let pos = protocolPosToPos diagnostic.Range.Start
 
         let filePath =
-          codeActionParameter.TextDocument.GetFilePath() |> Utils.normalizePath
-        let! tyRes, line, lines =  getParseResultsForFile filePath pos
+          codeActionParameter.TextDocument.GetFilePath()
+          |> Utils.normalizePath
+
+        let! tyRes, line, lines = getParseResultsForFile filePath pos
+
         match! getNamespaceSuggestions tyRes pos line with
         | CoreResponse.InfoRes msg
         | CoreResponse.ErrorRes msg -> return []
         | CoreResponse.Res (word, opens, qualifiers) ->
-            let quals =
-              qualifiers
-              |> List.map (fun (_, qual) -> qualifierFix codeActionParameter.TextDocument diagnostic qual)
+          let quals =
+            qualifiers
+            |> List.map (fun (_, qual) -> qualifierFix codeActionParameter.TextDocument diagnostic qual)
 
-            let ops =
-              opens
-              |> List.map (openFix lines codeActionParameter.TextDocument diagnostic word)
+          let ops =
+            opens
+            |> List.map (openFix lines codeActionParameter.TextDocument diagnostic word)
 
-            return [ yield! ops; yield! quals ]
+          return [ yield! ops; yield! quals ]
       })
-
