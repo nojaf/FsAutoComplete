@@ -9,6 +9,10 @@ open FsAutoComplete.LspHelpers
 open FSharp.Compiler.Symbols
 open FSharp.Compiler.Syntax
 open FSharp.Compiler.Text
+open FSharp.Compiler.Text.Range
+
+// TODO: this doesn't show any convenient light bubble hint in the IDE
+// Perhaps suggesting this via the error code might be a better way.
 
 let title = "Add wildcard to pattern"
 
@@ -33,7 +37,14 @@ let fix
                     isInfix = true
                     funcExpr = SynExpr.LongIdent(
                       longDotId = SynLongIdent(id = [ ident ]; trivia = [ Some(IdentTrivia.OriginalNotation "|->") ]))
-                    argExpr = SynExpr.Match _)) -> Some ident.idRange
+                    argExpr = argExpr)) when (rangeContainsPos ident.idRange fcsPos) ->
+                match argExpr with
+                | SynExpr.Match _ -> Some ident.idRange
+                | _ ->
+                  match path with
+                  | SyntaxNode.SynExpr(SynExpr.YieldOrReturn _) :: SyntaxNode.SynMatchClause _ :: _ ->
+                    Some ident.idRange
+                  | _ -> None
               | _ -> defaultTraverse synExpr }
 
       SyntaxTraversal.Traverse(fcsPos, parseTree, visitor)
