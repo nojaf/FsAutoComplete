@@ -11,64 +11,70 @@ open FSharp.Compiler.Syntax
 open FSharp.Compiler.Text
 open FSharp.Compiler.Text.Range
 
-// TODO: this doesn't show any convenient light bubble hint in the IDE
-// Perhaps suggesting this via the error code might be a better way.
-
 let title = "Add wildcard to pattern"
 
-let fix
-  (getParseResultsForFile: GetParseResultsForFile)
-  (codeActionParams: CodeActionParams)
-  : Async<Result<Fix list, string>> =
-  asyncResult {
-    let fcsPos = protocolPosToPos codeActionParams.Range.Start
-    let filePath = codeActionParams.TextDocument.GetFilePath() |> Utils.normalizePath
-    let! parseAndCheck, _lineString, sourceText = getParseResultsForFile filePath fcsPos
-    let parseTree = parseAndCheck.GetParseResults.ParseTree
+let (|BarMinusGreaterApplication|_|) (e: SynExpr) =
+  match e with
+  | SynExpr.App(
+      isInfix = false
+      funcExpr = SynExpr.App(
+        isInfix = true
+        funcExpr = SynExpr.LongIdent(
+          longDotId = SynLongIdent(id = [ ident ]; trivia = [ Some(IdentTrivia.OriginalNotation "|->") ]))
+        argExpr = argExpr)) -> Some(ident.idRange, argExpr)
+  | _ -> None
 
-    let infixApplication =
-      let visitor =
-        { new SyntaxVisitorBase<range>() with
-            member _.VisitExpr(path, traverseSynExpr, defaultTraverse, synExpr) =
-              match synExpr with
-              | SynExpr.App(
-                  isInfix = false
-                  funcExpr = SynExpr.App(
-                    isInfix = true
-                    funcExpr = SynExpr.LongIdent(
-                      longDotId = SynLongIdent(id = [ ident ]; trivia = [ Some(IdentTrivia.OriginalNotation "|->") ]))
-                    argExpr = argExpr)) when (rangeContainsPos ident.idRange fcsPos) ->
-                match argExpr with
-                | SynExpr.Match _ -> Some ident.idRange
-                | _ ->
-                  match path with
-                  | SyntaxNode.SynExpr(SynExpr.YieldOrReturn _) :: SyntaxNode.SynMatchClause _ :: _ ->
-                    Some ident.idRange
-                  | _ -> None
-              | _ -> defaultTraverse synExpr }
+let fix (getParseResultsForFile: GetParseResultsForFile) =
+  Run.ifDiagnosticByCode (Set.ofList [ "43"; "750" ]) (fun diagnostic codeActionParams ->
+    asyncResult {
+      let fcsPos = protocolPosToPos diagnostic.Range.Start
+      let filePath = codeActionParams.TextDocument.GetFilePath() |> Utils.normalizePath
+      let! parseAndCheck, _lineString, sourceText = getParseResultsForFile filePath fcsPos
+      let parseTree = parseAndCheck.GetParseResults.ParseTree
 
-      SyntaxTraversal.Traverse(fcsPos, parseTree, visitor)
+      let infixApplication =
+        let visitor =
+          { new SyntaxVisitorBase<range>() with
+              member _.VisitExpr(path, traverseSynExpr, defaultTraverse, synExpr) =
+                match synExpr with
+                | BarMinusGreaterApplication(mOperator, argExpr) ->
+                  if rangeContainsPos mOperator fcsPos then
+                    // The diagnostic is reported on the operator |-> itself
+                    match argExpr with
+                    | SynExpr.Match _ -> Some mOperator
+                    | _ -> None
+                  else
+                    // Verify the parent expression is part of the previous match clause
+                    match path with
+                    | SyntaxNode.SynExpr rhsExpr :: SyntaxNode.SynMatchClause _ :: _ when
+                      rangeContainsPos rhsExpr.Range fcsPos
+                      ->
+                      Some mOperator
+                    | _ -> None
+                | _ -> defaultTraverse synExpr }
 
-    match infixApplication with
-    | None -> return []
-    | Some mInfixApp ->
-      match sourceText.GetLine(mInfixApp.End) with
+        SyntaxTraversal.Traverse(fcsPos, parseTree, visitor)
+
+      match infixApplication with
       | None -> return []
-      | Some line ->
-        let symbol = parseAndCheck.TryGetSymbolUse mInfixApp.End line
-
-        match symbol with
+      | Some mInfixApp ->
+        match sourceText.GetLine(mInfixApp.End) with
         | None -> return []
-        | Some symbol ->
-          match symbol.Symbol with
-          | :? FSharpMemberOrFunctionOrValue -> return []
-          | _ ->
-            return
-              [ { Edits =
-                    [| { Range = fcsRangeToLsp mInfixApp
-                         NewText = "| _ ->" } |]
-                  File = codeActionParams.TextDocument
-                  Title = title
-                  SourceDiagnostic = None
-                  Kind = FixKind.Refactor } ]
-  }
+        | Some line ->
+          let symbol = parseAndCheck.TryGetSymbolUse mInfixApp.End line
+
+          match symbol with
+          | None -> return []
+          | Some symbol ->
+            match symbol.Symbol with
+            | :? FSharpMemberOrFunctionOrValue -> return []
+            | _ ->
+              return
+                [ { Edits =
+                      [| { Range = fcsRangeToLsp mInfixApp
+                           NewText = "| _ ->" } |]
+                    File = codeActionParams.TextDocument
+                    Title = title
+                    SourceDiagnostic = None
+                    Kind = FixKind.Refactor } ]
+    })

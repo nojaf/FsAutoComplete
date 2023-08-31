@@ -7,7 +7,7 @@ open Utils.CursorbasedTests
 open FsAutoComplete.CodeFix
 
 let tests state =
-  serverTestList (nameof AddMissingWildcard) state defaultConfigDto None (fun server ->
+  fserverTestList (nameof AddMissingWildcard) state defaultConfigDto None (fun server ->
     [ let selectCodeFix = CodeFix.withTitle AddMissingWildcard.title
 
       testCaseAsync "last match clause is mistaken"
@@ -24,7 +24,7 @@ let testMatch su =
     | First -> "hey"
     |->$0 "hello"
         """
-        Diagnostics.acceptAll
+        (Diagnostics.expectCode "43")
         selectCodeFix
         """
 type SomeUnion =
@@ -38,10 +38,12 @@ let testMatch su =
     | _ -> "hello"
         """
 
-      ftestCaseAsync "match clauses are combined"
+      testCaseAsync "match clauses are combined"
       <| CodeFix.check
         server
         """
+open System.Threading.Tasks
+
 type SomeUnion =
     | First
     | Second
@@ -54,14 +56,16 @@ let testMatchTwo su =
         match z with
         |Some(n) ->
             return ""
-        |->$0
-            let! x = Task.Delay(200)
+        |->
+            $0let! x = Task.Delay(200)
             return "hello"
     }
         """
-        Diagnostics.acceptAll
+        (Diagnostics.expectCode "750")
         selectCodeFix
         """
+open System.Threading.Tasks
+
 type SomeUnion =
     | First
     | Second
