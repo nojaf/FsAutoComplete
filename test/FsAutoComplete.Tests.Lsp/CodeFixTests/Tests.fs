@@ -3312,6 +3312,7 @@ let tests state =
       AddExplicitTypeAnnotationTests.tests state
       ToInterpolatedStringTests.tests state
       ToInterpolatedStringTests.unavailableTests state
+      AddMissingWildcardTests.tests state
       addMissingEqualsToTypeDefinitionTests state
       addMissingFunKeywordTests state
       addMissingInstanceMemberTests state

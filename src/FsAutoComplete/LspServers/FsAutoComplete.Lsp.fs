@@ -1173,8 +1173,7 @@ type FSharpLspServer(state: State, lspClient: FSharpLspClient, sourceTextFactory
              RenameParamToMatchSignature.fix tryGetParseResultsForFile
              RemovePatternArgument.fix tryGetParseResultsForFile
              ToInterpolatedString.fix tryGetParseResultsForFile tryGetLanguageVersion
-
-             |]
+             AddMissingWildcard.fix tryGetParseResultsForFile |]
 
 
         match p.RootPath, c.AutomaticWorkspaceInit with
