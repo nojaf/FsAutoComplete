@@ -367,8 +367,11 @@ let tests state =
 
     let appNode =
       match testBinding.Expr with
-      | Expr.App appNode -> appNode
-      | e -> failwithf $"Expected Expr.App, got %A{e}"
+      | Expr.InfixApp infixApp ->
+        match infixApp.RightHandSide with
+        | Expr.App appNode -> appNode
+        | e -> failwithf $"Expected Expr.App, got %A{e}"
+      | e -> failwithf $"Expected Expr.InfixApp, got %A{e}"
 
     findArrayOrListOfFail (List.last appNode.Arguments)
 
